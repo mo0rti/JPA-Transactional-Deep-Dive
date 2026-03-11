@@ -569,6 +569,10 @@ If you call `cancelStaleOrders()` directly - not from within an existing `@Trans
 
 ### Two Ways to Fix It
 
+Both approaches are valid. The [Spring Data JPA documentation](https://docs.spring.io/spring-data/jpa/reference/jpa/transactions.html) itself shows `@Transactional` directly on `@Modifying` methods. At the same time, the docs note: *"we generally recommend declaring transaction boundaries when starting a unit of work."* Vlad Mihalcea takes a [stronger position](https://vladmihalcea.com/spring-transactional-annotation/): *"The @Transactional annotation belongs to the Service layer because it is the Service layer's responsibility to define the transaction boundaries."*
+
+In practice, it depends on what your method does.
+
 **Option 1: Add `@Transactional` on the repository method**
 
 ```java
@@ -578,9 +582,9 @@ If you call `cancelStaleOrders()` directly - not from within an existing `@Trans
 int cancelStaleOrders(@Param("cutoff") LocalDateTime cutoff);
 ```
 
-This gives the method its own read-write transaction.
+This gives the method its own read-write transaction. It is simple and self-contained - the method works correctly no matter where you call it from. Use this when the `@Modifying` query is a standalone operation that does not need to be grouped with other database calls.
 
-**Option 2: Call it from a `@Transactional` service method (recommended)**
+**Option 2: Call it from a `@Transactional` service method**
 
 ```java
 @Service
@@ -594,7 +598,7 @@ public class OrderService {
 }
 ```
 
-Option 2 is better because it keeps transaction boundaries in the service layer, consistent with the architecture we recommended earlier.
+Use this when the `@Modifying` query is part of a larger operation - for example, when you need to cancel orders, create audit records, and send notifications in the same transaction. The service method gives you one atomic unit of work across multiple repository calls.
 
 **Tip:** You can also add `@Transactional(readOnly = true)` at the repository interface level to cover all your custom query methods, then override with `@Transactional` on specific `@Modifying` methods:
 
