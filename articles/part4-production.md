@@ -1,8 +1,8 @@
-# Production-Grade @Transactional — Patterns, Testing, and the Things Nobody Tells You
+# Production-Grade @Transactional - Patterns, Testing, and the Things Nobody Tells You
 
 Your `@Transactional` works perfectly in tests. It passes code review. Then, under load in production, it starts holding database connections for 12 seconds, your connection pool drains, and your entire service goes down.
 
-This article is about everything that happens after you learn the basics — the production patterns that separate "it works" from "it works at scale." We will cover event listeners, retry strategies, programmatic transactions, the outbox pattern, and how to test transactional code without falling into the rollback trap.
+This article is about everything that happens after you learn the basics - the production patterns that separate "it works" from "it works at scale." We will cover event listeners, retry strategies, programmatic transactions, the outbox pattern, and how to test transactional code without falling into the rollback trap.
 
 If you have read Parts 1 through 3 of this series, you understand JPA internals, `@Transactional` mechanics, and performance. Now let us put it all together for real production code.
 
@@ -56,11 +56,11 @@ This is the foundation. Everything in this article builds on this layering.
 
 ---
 
-## @TransactionalEventListener — Decoupling Side Effects
+## @TransactionalEventListener - Decoupling Side Effects
 
-When a transaction commits, you often need to trigger side effects — send an email, publish a message to Kafka, update a cache. But these side effects should only happen if the transaction actually commits. If it rolls back, the email should not go out.
+When a transaction commits, you often need to trigger side effects - send an email, publish a message to Kafka, update a cache. But these side effects should only happen if the transaction actually commits. If it rolls back, the email should not go out.
 
-Spring's `@TransactionalEventListener` solves this. It listens for events and runs only after the transaction reaches a specific phase — by default, after commit.
+Spring's `@TransactionalEventListener` solves this. It listens for events and runs only after the transaction reaches a specific phase - by default, after commit.
 
 ### How It Works
 
@@ -79,7 +79,7 @@ public class OrderService {
     public Order createOrder(String description, BigDecimal amount) {
         Order order = orderRepository.save(new Order(description, amount));
 
-        // Publish event. It is NOT delivered yet — it waits for commit.
+        // Publish event. It is NOT delivered yet - it waits for commit.
         eventPublisher.publishEvent(new OrderCreatedEvent(order.getId(), "customer@example.com"));
 
         return order;
@@ -105,10 +105,10 @@ If the transaction rolls back, the event handler never runs. The email is never 
 
 ### The Phases
 
-- `AFTER_COMMIT` (default) — Runs after successful commit. Most common.
-- `AFTER_ROLLBACK` — Runs after rollback. Useful for compensating actions.
-- `AFTER_COMPLETION` — Runs after commit or rollback.
-- `BEFORE_COMMIT` — Runs before commit, still inside the transaction. Use for validation that must happen at the very end.
+- `AFTER_COMMIT` (default) - Runs after successful commit. Most common.
+- `AFTER_ROLLBACK` - Runs after rollback. Useful for compensating actions.
+- `AFTER_COMPLETION` - Runs after commit or rollback.
+- `BEFORE_COMMIT` - Runs before commit, still inside the transaction. Use for validation that must happen at the very end.
 
 ### Important: No Transaction in AFTER_COMMIT
 
@@ -125,7 +125,7 @@ public void handleOrderCreated(OrderCreatedEvent event) {
 
 In Spring Framework 6.1+ (Spring Boot 3.2+), plain `@Transactional` (REQUIRED) also works here because Spring now properly cleans up the transaction synchronization state from the thread before invoking AFTER_COMMIT listeners. But `REQUIRES_NEW` is the safer, version-independent approach.
 
-**Note:** If an event is published outside a transactional context, the `@TransactionalEventListener` silently ignores it by default — the handler never runs. If you need the handler to execute even without a transaction, add `fallbackExecution = true`:
+**Note:** If an event is published outside a transactional context, the `@TransactionalEventListener` silently ignores it by default - the handler never runs. If you need the handler to execute even without a transaction, add `fallbackExecution = true`:
 
 ```java
 @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
@@ -137,7 +137,7 @@ public void handleEvent(OrderCreatedEvent event) {
 
 ---
 
-## Async + @Transactional — Why @Async @Transactional Is Almost Always Wrong
+## Async + @Transactional - Why @Async @Transactional Is Almost Always Wrong
 
 A common mistake is combining `@Async` and `@Transactional` on the same method:
 
@@ -152,11 +152,11 @@ public void processOrderAsync(Long orderId) {
 }
 ```
 
-The problem is that `@Async` runs the method in a different thread. Transactions are bound to threads. So the `@Transactional` on an `@Async` method always creates a new, independent transaction — it never joins the caller's transaction.
+The problem is that `@Async` runs the method in a different thread. Transactions are bound to threads. So the `@Transactional` on an `@Async` method always creates a new, independent transaction - it never joins the caller's transaction.
 
 This means:
 1. If the caller's transaction rolls back after the async call is dispatched, the async work still commits.
-2. If the async work fails, the caller's transaction is unaffected — it may have already committed.
+2. If the async work fails, the caller's transaction is unaffected - it may have already committed.
 3. You have no transactional consistency between the caller and the async work.
 
 ### The Correct Approach
@@ -206,7 +206,7 @@ This gives you: guaranteed commit before async processing starts, a clean transa
 
 ---
 
-## TransactionTemplate — When Annotations Are Not Enough
+## TransactionTemplate - When Annotations Are Not Enough
 
 Sometimes `@Transactional` annotations are too rigid. You need to run part of a method in a transaction and part outside. Or you need fine-grained control over transaction boundaries in a loop. `TransactionTemplate` is the programmatic alternative.
 
@@ -246,10 +246,10 @@ public class BatchProcessingService {
 
 ### When to Use TransactionTemplate
 
-- **Batch processing with individual transaction per item** — If one item fails, others should not be affected.
-- **Mixed transactional and non-transactional work** — Call an external API outside the transaction, then save the result inside a transaction.
-- **Self-invocation workaround** — When you cannot extract a method to a separate service.
-- **Dynamic transaction configuration** — Set isolation level or timeout based on runtime conditions.
+- **Batch processing with individual transaction per item** - If one item fails, others should not be affected.
+- **Mixed transactional and non-transactional work** - Call an external API outside the transaction, then save the result inside a transaction.
+- **Self-invocation workaround** - When you cannot extract a method to a separate service.
+- **Dynamic transaction configuration** - Set isolation level or timeout based on runtime conditions.
 
 ```java
 // Dynamic timeout based on data size
@@ -274,7 +274,7 @@ List<Order> orders = readOnlyTx.execute(status -> {
 
 ---
 
-## Retryable Transactions — Handling PostgreSQL Serialization Failures
+## Retryable Transactions - Handling PostgreSQL Serialization Failures
 
 When you use `REPEATABLE READ` or `SERIALIZABLE` isolation levels, PostgreSQL may throw serialization errors if two transactions conflict. These errors look like:
 
@@ -309,7 +309,7 @@ public class Application { }
 
 ### The Ordering Problem
 
-When combining `@Retryable` and `@Transactional`, the order of the annotations matters. `@Retryable` must wrap `@Transactional`, not the other way around. If the transaction wraps the retry, retries happen inside a doomed transaction — the first failure marks the transaction for rollback, and retries cannot save it.
+When combining `@Retryable` and `@Transactional`, the order of the annotations matters. `@Retryable` must wrap `@Transactional`, not the other way around. If the transaction wraps the retry, retries happen inside a doomed transaction - the first failure marks the transaction for rollback, and retries cannot save it.
 
 ```java
 // CORRECT: @Retryable wraps @Transactional.
@@ -377,7 +377,7 @@ public class TransferService {
 
 ---
 
-## The Outbox Pattern — Reliable Event Publishing
+## The Outbox Pattern - Reliable Event Publishing
 
 What happens if your service saves an order to the database and then publishes a message to Kafka, but the Kafka publish fails? The order is committed, but the event is lost. Or worse: the Kafka publish succeeds but the database transaction rolls back. Now you have a phantom event with no matching data.
 
@@ -455,18 +455,18 @@ public class OutboxPublisher {
                 event.setSent(true); // Mark as published
             } catch (Exception e) {
                 log.error("Failed to publish event {}: {}", event.getId(), e.getMessage());
-                break; // Stop processing — maintain order
+                break; // Stop processing - maintain order
             }
         }
     }
 }
 ```
 
-This is a simplified version. In production, you might use Debezium for CDC-based outbox (no polling needed) or add a `sentAt` timestamp and a `retryCount` for more robust handling.
+This is a simplified version. In production, you might use Debezium for CDC-based outbox (no polling needed) or add a `sentAt` timestamp and a `retryCount` for better error handling.
 
 ---
 
-## Testing Transactional Code — The Rollback Trap
+## Testing Transactional Code - The Rollback Trap
 
 Spring's test framework has a feature that trips up almost everyone: **`@Transactional` on a test method rolls back after the test completes.** This means your test data is never actually committed to the database.
 
@@ -530,7 +530,7 @@ class OrderServiceTest {
 
 ### Testcontainers for Real PostgreSQL
 
-Do not use H2 for testing. H2 behaves differently from PostgreSQL in subtle ways — different SQL syntax, different locking behavior, different sequence handling. Use Testcontainers to run a real PostgreSQL instance in Docker.
+Do not use H2 for testing. H2 behaves differently from PostgreSQL in subtle ways - different SQL syntax, different locking behavior, different sequence handling. Use Testcontainers to run a real PostgreSQL instance in Docker.
 
 ```java
 @SpringBootTest
@@ -541,7 +541,7 @@ class OrderServiceIntegrationTest {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
 
     // Spring Boot 3.1+: @ServiceConnection auto-configures the datasource
-    // from the container — no manual property registration needed.
+    // from the container - no manual property registration needed.
     // For older versions, use @DynamicPropertySource instead.
 
     @DynamicPropertySource
@@ -578,7 +578,7 @@ Add to your test `pom.xml`:
 
 ---
 
-## Connection Pool Monitoring — HikariCP
+## Connection Pool Monitoring - HikariCP
 
 Your application is only as healthy as its connection pool. HikariCP is the default connection pool in Spring Boot, and it needs monitoring.
 
@@ -602,7 +602,7 @@ The most important setting is `maximum-pool-size`. A good starting formula:
 pool-size = (core_count * 2) + number_of_disk_spindles
 ```
 
-For most cloud instances with SSDs, 10-20 connections is plenty. More connections is not better — it leads to more context switching and lock contention in PostgreSQL.
+For most cloud instances with SSDs, 10-20 connections is plenty. More connections is not better - it leads to more context switching and lock contention in PostgreSQL.
 
 ### Leak Detection
 
@@ -630,16 +630,16 @@ management:
 ```
 
 Key metrics to monitor:
-- `hikaricp.connections.active` — How many connections are in use right now
-- `hikaricp.connections.pending` — Threads waiting for a connection (danger sign)
-- `hikaricp.connections.idle` — Available connections
-- `hikaricp.connections.timeout` — Connection acquisition timeouts (very bad)
+- `hikaricp.connections.active` - How many connections are in use right now
+- `hikaricp.connections.pending` - Threads waiting for a connection (danger sign)
+- `hikaricp.connections.idle` - Available connections
+- `hikaricp.connections.timeout` - Connection acquisition timeouts (very bad)
 
 If `pending` is consistently above 0, your pool is too small or your transactions are too slow.
 
 ---
 
-## Putting It All Together — A Production Checklist
+## Putting It All Together - A Production Checklist
 
 Here is what a production-ready Spring Boot + JPA + PostgreSQL setup looks like:
 
@@ -702,11 +702,11 @@ class OrderServiceTest {
 
 1. **Keep transactions in the service layer.** Controllers handle HTTP. Services own transaction boundaries. Repositories do not need their own `@Transactional`.
 
-2. **Use `@TransactionalEventListener`** for side effects that must only happen after commit — emails, messages, cache updates. Combine with `@Async` for non-blocking processing.
+2. **Use `@TransactionalEventListener`** for side effects that must only happen after commit - emails, messages, cache updates. Combine with `@Async` for non-blocking processing.
 
 3. **Never combine `@Async` and `@Transactional` on the same method.** The async thread gets its own transaction regardless. Use event listeners to trigger async work after commit.
 
-4. **Use `TransactionTemplate`** for fine-grained control — batch processing with per-item transactions, mixed transactional/non-transactional work, or dynamic transaction settings.
+4. **Use `TransactionTemplate`** for fine-grained control - batch processing with per-item transactions, mixed transactional/non-transactional work, or dynamic transaction settings.
 
 5. **Retry serialization failures** with Spring Retry. Make sure `@Retryable` wraps `@Transactional`, not the other way around. The simplest approach: put retry on the caller, transaction on the callee.
 
@@ -722,10 +722,10 @@ class OrderServiceTest {
 
 Over four articles, we have gone from "what happens when you call `save()`" to production-grade transaction management:
 
-- **Part 1** — JPA internals: Persistence Context, entity states, dirty checking, flushing
-- **Part 2** — `@Transactional`: proxies, propagation, isolation, rollback behavior
-- **Part 3** — Performance: N+1 queries, fetch strategies, DTO projections
-- **Part 4** — Production patterns: events, retries, outbox, testing, monitoring
+- **Part 1** - JPA internals: Persistence Context, entity states, dirty checking, flushing
+- **Part 2** - `@Transactional`: proxies, propagation, isolation, rollback behavior
+- **Part 3** - Performance: N+1 queries, fetch strategies, DTO projections
+- **Part 4** - Production patterns: events, retries, outbox, testing, monitoring
 
 The common thread through all of these is understanding. JPA and `@Transactional` are not magic. They are well-defined mechanisms with clear rules. When you understand those rules, you write better code, debug faster, and build systems that work under load.
 

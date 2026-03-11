@@ -1,4 +1,4 @@
-# @Transactional — The Annotation You Use Everywhere But Don't Fully Understand
+# @Transactional - The Annotation You Use Everywhere But Don't Fully Understand
 
 Here is a production bug that cost a fintech startup three days of debugging: a `@Transactional` method that was not transactional. The code looked perfect. The annotation was there. The tests passed. And yet, in production, data was partially committed.
 
@@ -6,18 +6,18 @@ The cause? The transactional method was called from another method in the same c
 
 This kind of bug is invisible. There are no errors, no warnings, no exceptions. The code runs. It just does not run inside a transaction.
 
-This article explains how `@Transactional` really works — the proxy mechanism underneath it, the propagation levels that control transaction boundaries, and the five most common mistakes that silently break your transactional code.
+This article explains how `@Transactional` really works - the proxy mechanism underneath it, the propagation levels that control transaction boundaries, and the five most common mistakes that silently break your transactional code.
 
 ---
 
-## How @Transactional Actually Works — The Proxy
+## How @Transactional Actually Works - The Proxy
 
-When you put `@Transactional` on a method, Spring does not magically add transaction code to your class. Instead, it creates a **proxy** — a wrapper object that sits in front of your real bean.
+When you put `@Transactional` on a method, Spring does not magically add transaction code to your class. Instead, it creates a **proxy** - a wrapper object that sits in front of your real bean.
 
 Here is what happens at startup:
 
 1. Spring scans your class and sees `@Transactional` on one or more methods.
-2. Spring creates a proxy — a new object that implements the same interface (or extends the same class).
+2. Spring creates a proxy - a new object that implements the same interface (or extends the same class).
 3. The proxy is registered in the application context instead of your real bean.
 4. When other beans inject your service, they get the proxy, not the real object.
 
@@ -63,11 +63,11 @@ public class ProxyChecker implements CommandLineRunner {
 }
 ```
 
-Spring Boot uses CGLIB proxies by default. CGLIB creates a subclass of your bean at runtime. This means `@Transactional` works on concrete classes — you do not need interfaces. The proxy subclass overrides your methods, adds the transaction logic, and then delegates to the target bean instance to run your actual code.
+Spring Boot uses CGLIB proxies by default. CGLIB creates a subclass of your bean at runtime. This means `@Transactional` works on concrete classes - you do not need interfaces. The proxy subclass overrides your methods, adds the transaction logic, and then delegates to the target bean instance to run your actual code.
 
 ---
 
-## The Self-Invocation Trap — Why @Transactional Silently Fails
+## The Self-Invocation Trap - Why @Transactional Silently Fails
 
 This is the single most common `@Transactional` bug. It affects every Spring project, and most developers discover it the hard way.
 
@@ -93,7 +93,7 @@ public class OrderService {
 }
 ```
 
-Why does this happen? When `processOrder()` calls `this.applyDiscount()`, the call goes directly to the real object. It never passes through the proxy. The proxy only intercepts calls that come from **outside** the bean — from other beans that hold a reference to the proxy.
+Why does this happen? When `processOrder()` calls `this.applyDiscount()`, the call goes directly to the real object. It never passes through the proxy. The proxy only intercepts calls that come from **outside** the bean - from other beans that hold a reference to the proxy.
 
 ```
 External Caller → Proxy.processOrder() → RealObject.processOrder()
@@ -155,7 +155,7 @@ public class OrderService {
 }
 ```
 
-Spring Boot 3.x rejects circular references by default (`spring.main.allow-circular-references=false`). The `@Lazy` prevents the cycle detection from triggering — Spring creates a lazy proxy immediately without resolving the target bean upfront. `self` refers to the proxy, so the call goes through transaction management.
+Spring Boot 3.x rejects circular references by default (`spring.main.allow-circular-references=false`). The `@Lazy` prevents the cycle detection from triggering - Spring creates a lazy proxy immediately without resolving the target bean upfront. `self` refers to the proxy, so the call goes through transaction management.
 
 **Solution 3: Use `TransactionTemplate` (programmatic approach)**
 
@@ -185,7 +185,7 @@ This avoids the proxy issue entirely because you are managing the transaction pr
 
 ---
 
-## Propagation — Controlling Transaction Boundaries
+## Propagation - Controlling Transaction Boundaries
 
 Propagation defines what happens when a `@Transactional` method calls another `@Transactional` method. Should they share the same transaction? Should the second method get its own transaction? Should it run without a transaction?
 
@@ -210,7 +210,7 @@ public void methodB() {
 
 This is what you want 90% of the time. Your service methods share a transaction, so they all see the same Persistence Context, they all commit together, and if anything fails, everything rolls back.
 
-**Important:** When methodB joins methodA's transaction, it is fully joined. If methodB throws an exception that marks the transaction for rollback, **the entire transaction is rolled back** — including methodA's work. Even if methodA catches the exception, the transaction is already marked for rollback, and the commit will fail with `UnexpectedRollbackException`.
+**Important:** When methodB joins methodA's transaction, it is fully joined. If methodB throws an exception that marks the transaction for rollback, **the entire transaction is rolled back** - including methodA's work. Even if methodA catches the exception, the transaction is already marked for rollback, and the commit will fail with `UnexpectedRollbackException`.
 
 ```java
 @Transactional
@@ -265,24 +265,24 @@ public void sendNotification(String message) {
 }
 ```
 
-Use this for methods that do not touch the database and should not hold a connection — like sending emails, calling external APIs, or processing files.
+Use this for methods that do not touch the database and should not hold a connection - like sending emails, calling external APIs, or processing files.
 
 ### The Other Propagation Levels
 
-- `SUPPORTS` — Use the current transaction if one exists. Otherwise, run without one. Rarely useful.
-- `MANDATORY` — Throw an exception if there is no current transaction. Useful for methods that must always be called within an existing transaction.
-- `NEVER` — Throw an exception if there IS a current transaction. The opposite of MANDATORY.
-- `NESTED` — Create a savepoint within the existing transaction. If the nested part fails, roll back to the savepoint without rolling back the outer transaction. Only works with JDBC `DataSource` transactions — not JTA. Rarely used in practice.
+- `SUPPORTS` - Use the current transaction if one exists. Otherwise, run without one. Rarely useful.
+- `MANDATORY` - Throw an exception if there is no current transaction. Useful for methods that must always be called within an existing transaction.
+- `NEVER` - Throw an exception if there IS a current transaction. The opposite of MANDATORY.
+- `NESTED` - Create a savepoint within the existing transaction. If the nested part fails, roll back to the savepoint without rolling back the outer transaction. Only works with JDBC `DataSource` transactions - not JTA. Rarely used in practice.
 
 ---
 
-## Isolation Levels — How Transactions See Each Other's Data
+## Isolation Levels - How Transactions See Each Other's Data
 
 Isolation controls what happens when two transactions run at the same time and access the same data. PostgreSQL supports four isolation levels, but in practice, you will use two.
 
 ### READ COMMITTED (The Default)
 
-This is PostgreSQL's default isolation level. Spring's `@Transactional` uses `Isolation.DEFAULT`, which means "use whatever the database defaults to" — and for PostgreSQL, that is READ COMMITTED. Each query in your transaction sees only data that was committed before that query started. If another transaction commits while yours is running, your next query will see those changes.
+This is PostgreSQL's default isolation level. Spring's `@Transactional` uses `Isolation.DEFAULT`, which means "use whatever the database defaults to" - and for PostgreSQL, that is READ COMMITTED. Each query in your transaction sees only data that was committed before that query started. If another transaction commits while yours is running, your next query will see those changes.
 
 ```java
 @Transactional(isolation = Isolation.READ_COMMITTED) // default
@@ -316,15 +316,15 @@ The trade-off: if your transaction tries to update a row that another transactio
 
 The strictest level. Transactions behave as if they ran one after another, with no overlap. PostgreSQL uses a technique called **Serializable Snapshot Isolation (SSI)** to detect conflicts.
 
-You rarely need this. It is useful for financial calculations where absolute consistency is required, but it comes with a performance cost — more transactions will fail with serialization errors and need retries.
+You rarely need this. It is useful for financial calculations where absolute consistency is required, but it comes with a performance cost - more transactions will fail with serialization errors and need retries.
 
 ### READ UNCOMMITTED
 
-PostgreSQL does not support this level. If you set it, PostgreSQL silently upgrades it to READ COMMITTED. No configuration needed — you cannot get dirty reads in PostgreSQL.
+PostgreSQL does not support this level. If you set it, PostgreSQL silently upgrades it to READ COMMITTED. No configuration needed - you cannot get dirty reads in PostgreSQL.
 
 ---
 
-## readOnly = true — More Than You Think
+## readOnly = true - More Than You Think
 
 Many developers use `readOnly = true` as a best practice label. They think it is just documentation. It is not. It triggers a chain of real optimizations.
 
@@ -351,11 +351,11 @@ Spring calls `connection.setReadOnly(true)` on the JDBC connection. PostgreSQL u
 
 ### 4. PostgreSQL Gets a Read-Only Transaction Hint
 
-The database receives `SET TRANSACTION READ ONLY`. PostgreSQL will reject any INSERT, UPDATE, or DELETE statements within this transaction. This is a safety net — if your "read-only" code accidentally tries to modify data, the database will catch it.
+The database receives `SET TRANSACTION READ ONLY`. PostgreSQL will reject any INSERT, UPDATE, or DELETE statements within this transaction. This is a safety net - if your "read-only" code accidentally tries to modify data, the database will catch it.
 
 ### When to Use readOnly = true
 
-Use it on every method that only reads data. It is not just documentation — it is a real performance improvement, especially for methods that load many entities.
+Use it on every method that only reads data. It is not just documentation - it is a real performance improvement, especially for methods that load many entities.
 
 ```java
 @Service
@@ -395,7 +395,7 @@ public class ProductService {
 
 ---
 
-## Rollback Behavior — The Exception Trap
+## Rollback Behavior - The Exception Trap
 
 By default, `@Transactional` rolls back on **unchecked exceptions** (subclasses of `RuntimeException`) and **errors**. It does **not** roll back on **checked exceptions**.
 
@@ -459,7 +459,7 @@ This is not a matter of taste. There is a correct answer.
 
 ### Why Not on Controllers?
 
-Controllers handle HTTP concerns — parsing requests, validating input, formatting responses. A controller should not decide when a transaction starts and ends. If you put `@Transactional` on a controller, your transaction stays open while Spring serializes the response to JSON, writes HTTP headers, and flushes the response body. That is wasted time holding a database connection.
+Controllers handle HTTP concerns - parsing requests, validating input, formatting responses. A controller should not decide when a transaction starts and ends. If you put `@Transactional` on a controller, your transaction stays open while Spring serializes the response to JSON, writes HTTP headers, and flushes the response body. That is wasted time holding a database connection.
 
 ```java
 // BAD: Transaction is open during response serialization
@@ -477,13 +477,13 @@ public class OrderController {
 
 ### Why Not on Repositories?
 
-Spring Data JPA repositories already run each method in a transaction by default (using `@Transactional` internally, with `readOnly = true` for query methods). If you add your own `@Transactional` to a repository, you create individual transactions per repository call. That means two repository calls in the same service method run in separate transactions — they do not see each other's changes and do not roll back together.
+Spring Data JPA repositories already run each method in a transaction by default (using `@Transactional` internally, with `readOnly = true` for query methods). If you add your own `@Transactional` to a repository, you create individual transactions per repository call. That means two repository calls in the same service method run in separate transactions - they do not see each other's changes and do not roll back together.
 
 ```java
 // BAD: Each repository call is its own transaction
 public void transferFunds(Long fromId, Long toId, BigDecimal amount) {
-    accountRepo.debit(fromId, amount);   // Transaction 1 — commits
-    accountRepo.credit(toId, amount);    // Transaction 2 — what if this fails?
+    accountRepo.debit(fromId, amount);   // Transaction 1 - commits
+    accountRepo.credit(toId, amount);    // Transaction 2 - what if this fails?
     // First debit is already committed. Money disappeared.
 }
 ```
@@ -509,11 +509,11 @@ public class TransferService {
 
 ---
 
-## @Modifying Queries — What They Do and What They Don't
+## @Modifying Queries - What They Do and What They Don't
 
-Spring Data JPA lets you write custom queries using the `@Query` annotation. When your query changes data — an UPDATE, DELETE, or INSERT — you must also add `@Modifying`. Without it, Spring Data tries to execute your query as a SELECT and it fails.
+Spring Data JPA lets you write custom queries using the `@Query` annotation. When your query changes data - an UPDATE, DELETE, or INSERT - you must also add `@Modifying`. Without it, Spring Data tries to execute your query as a SELECT and it fails.
 
-But here is the important part: **`@Modifying` does not manage transactions.** It does not start a transaction. It does not provide a transaction. Its primary job is to tell Spring Data to call `executeUpdate()` instead of `getResultList()`. It also provides two Persistence Context hooks — `clearAutomatically` and `flushAutomatically` — which we will cover shortly. But transaction management? That is not its job.
+But here is the important part: **`@Modifying` does not manage transactions.** It does not start a transaction. It does not provide a transaction. Its primary job is to tell Spring Data to call `executeUpdate()` instead of `getResultList()`. It also provides two Persistence Context hooks - `clearAutomatically` and `flushAutomatically` - which we will cover shortly. But transaction management? That is not its job.
 
 ### How SimpleJpaRepository Manages Transactions
 
@@ -542,13 +542,13 @@ So the layout is:
 - **Read methods** (`findById`, `findAll`, `count`, `existsById`) run in a `readOnly = true` transaction
 - **Write methods** (`save`, `saveAll`, `delete`, `deleteAll`, `flush`) run in a read-write transaction
 
-Each call gets its own transaction — **unless** there is already an active transaction from a calling service method. In that case, the repository method joins the existing transaction via `REQUIRED` propagation (the default).
+Each call gets its own transaction - **unless** there is already an active transaction from a calling service method. In that case, the repository method joins the existing transaction via `REQUIRED` propagation (the default).
 
 This means if you call `save()` from a `@Transactional` service method, it joins your service transaction. If you call `save()` directly from a controller (with no `@Transactional`), it creates its own short transaction.
 
 ### The Problem: @Modifying Without @Transactional
 
-Now here is where developers get confused. The `@Transactional(readOnly = true)` on `SimpleJpaRepository` applies to the **built-in CRUD methods** that are implemented inside that class. But custom `@Query` methods defined on your repository **interface** are different — they are handled by Spring Data's query execution infrastructure, not by `SimpleJpaRepository`.
+Now here is where developers get confused. The `@Transactional(readOnly = true)` on `SimpleJpaRepository` applies to the **built-in CRUD methods** that are implemented inside that class. But custom `@Query` methods defined on your repository **interface** are different - they are handled by Spring Data's query execution infrastructure, not by `SimpleJpaRepository`.
 
 According to the Spring Data JPA documentation: **"Declared query methods do not get any transaction configuration applied by default."**
 
@@ -565,7 +565,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
 This method has **no transactional configuration**. It does not inherit `readOnly = true` from `SimpleJpaRepository`, and it does not get its own transaction either.
 
-If you call `cancelStaleOrders()` directly — not from within an existing `@Transactional` service method — there is no active transaction. JPA requires `executeUpdate()` to run inside a transaction. Without one, you get a `TransactionRequiredException`. The query simply cannot execute.
+If you call `cancelStaleOrders()` directly - not from within an existing `@Transactional` service method - there is no active transaction. JPA requires `executeUpdate()` to run inside a transaction. Without one, you get a `TransactionRequiredException`. The query simply cannot execute.
 
 ### Two Ways to Fix It
 
@@ -630,7 +630,7 @@ public void demo() {
 }
 ```
 
-The second `findById` does not go to the database. It returns the same managed entity from the Persistence Context — with the old status. This is a real source of bugs.
+The second `findById` does not go to the database. It returns the same managed entity from the Persistence Context - with the old status. This is a real source of bugs.
 
 To fix this, use `clearAutomatically`:
 
@@ -640,7 +640,7 @@ To fix this, use `clearAutomatically`:
 int cancelStaleOrders(@Param("cutoff") LocalDateTime cutoff);
 ```
 
-`clearAutomatically = true` calls `entityManager.clear()` after the query runs, forcing any subsequent reads to go to the database. There is also `flushAutomatically = true`, which flushes pending entity changes to the database **before** the modifying query runs — so the query sees your uncommitted changes.
+`clearAutomatically = true` calls `entityManager.clear()` after the query runs, forcing any subsequent reads to go to the database. There is also `flushAutomatically = true`, which flushes pending entity changes to the database **before** the modifying query runs - so the query sees your uncommitted changes.
 
 ```java
 @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -674,7 +674,7 @@ private void doWork() {
 ```
 
 ### 4. Catching Exceptions Inside the Transaction
-Catching a `RuntimeException` inside a `@Transactional` method can lead to unexpected behavior. If the exception comes from code that does not pass through a transactional proxy (a plain method call, a utility, etc.), catching it prevents the rollback and the transaction commits — potentially with inconsistent data.
+Catching a `RuntimeException` inside a `@Transactional` method can lead to unexpected behavior. If the exception comes from code that does not pass through a transactional proxy (a plain method call, a utility, etc.), catching it prevents the rollback and the transaction commits - potentially with inconsistent data.
 
 ```java
 @Transactional
@@ -689,7 +689,7 @@ public void riskyMethod() {
 }
 ```
 
-But if the exception comes from a `@Transactional(propagation = REQUIRED)` method — one that joins your transaction — the situation is different. Spring's proxy sees the exception on the way out, marks the transaction as rollback-only, and then the exception reaches your catch block. You can catch it, but it is too late. The transaction is doomed. When your method finishes and Spring tries to commit, it throws `UnexpectedRollbackException`.
+But if the exception comes from a `@Transactional(propagation = REQUIRED)` method - one that joins your transaction - the situation is different. Spring's proxy sees the exception on the way out, marks the transaction as rollback-only, and then the exception reaches your catch block. You can catch it, but it is too late. The transaction is doomed. When your method finishes and Spring tries to commit, it throws `UnexpectedRollbackException`.
 
 ```java
 @Transactional
@@ -715,7 +715,7 @@ Using `@Transactional` on a class that is not a Spring bean. If you create an ob
 
 2. **Self-invocation bypasses the proxy.** If you call a `@Transactional` method from within the same class, no transaction is created. Extract the method to a separate service.
 
-3. **REQUIRED (default) joins existing transactions.** If the inner method fails, the entire transaction rolls back — even if you catch the exception. Use `REQUIRES_NEW` when you need isolation.
+3. **REQUIRED (default) joins existing transactions.** If the inner method fails, the entire transaction rolls back - even if you catch the exception. Use `REQUIRES_NEW` when you need isolation.
 
 4. **`readOnly = true` is a real optimization**, not just documentation. It skips dirty checking, disables auto-flush, and tells PostgreSQL to optimize for reads.
 

@@ -23,16 +23,16 @@ cd part1-jpa-internals
 mvn spring-boot:run
 ```
 
-Watch the console output — each runner prints labeled sections showing exactly what SQL Hibernate generates and when.
+Watch the console output - each runner prints labeled sections showing exactly what SQL Hibernate generates and when.
 
 ## Modules
 
 | Module | Article | What It Demonstrates |
 |--------|---------|---------------------|
-| `part1-jpa-internals` | Part 1 — JPA Internals | Entity states, Persistence Context, dirty checking, flush modes, persist vs merge |
-| `part2-transactional` | Part 2 — @Transactional | Proxy mechanics, propagation, readOnly, rollback behavior |
-| `part3-performance` | Part 3 — Performance Traps | N+1 queries, fetch strategies, DTO projections |
-| `part4-production` | Part 4 — Production Patterns | Event listeners, retries, outbox pattern, testing |
+| `part1-jpa-internals` | Part 1 - JPA Internals | Entity states, Persistence Context, dirty checking, flush modes, persist vs merge |
+| `part2-transactional` | Part 2 - @Transactional | Proxy mechanics, propagation, readOnly, rollback behavior |
+| `part3-performance` | Part 3 - Performance Traps | N+1 queries, fetch strategies, DTO projections |
+| `part4-production` | Part 4 - Production Patterns | Event listeners, retries, outbox pattern, testing |
 
 ## SQL Logging
 

@@ -4,11 +4,11 @@ I reviewed a Spring Boot service last month that made 847 SQL queries to render 
 
 This is the N+1 problem, and it is the most common performance killer in JPA applications. It does not throw errors. It does not log warnings. It just makes your application slow, and it gets worse as your data grows.
 
-In this article, we will learn how to find N+1 queries, understand why they happen, and fix them using fetch strategies, entity graphs, and DTO projections. By the end, you will know how to make your JPA code fast — without giving up the convenience that JPA provides.
+In this article, we will learn how to find N+1 queries, understand why they happen, and fix them using fetch strategies, entity graphs, and DTO projections. By the end, you will know how to make your JPA code fast - without giving up the convenience that JPA provides.
 
 ---
 
-## The N+1 Problem — What It Is and Why It Hurts
+## The N+1 Problem - What It Is and Why It Hurts
 
 Let us start with a simple domain model: authors who write books.
 
@@ -99,11 +99,11 @@ With nested relationships, it gets worse. If each author has 5 books, and you al
 
 It happens because of **lazy loading**. When you load an author, Hibernate does not load their books immediately. The `books` list is replaced with a special proxy that loads data from the database only when you access it. This is called a **lazy proxy** or **lazy collection**.
 
-Lazy loading is actually a good default. You do not always need the related data, and loading everything eagerly would waste memory and database bandwidth. The problem is not lazy loading itself — the problem is loading lazy collections **inside a loop**.
+Lazy loading is actually a good default. You do not always need the related data, and loading everything eagerly would waste memory and database bandwidth. The problem is not lazy loading itself - the problem is loading lazy collections **inside a loop**.
 
 ---
 
-## LAZY vs EAGER — Why Defaults Matter
+## LAZY vs EAGER - Why Defaults Matter
 
 JPA defines default fetch types for each relationship:
 
@@ -114,7 +114,7 @@ JPA defines default fetch types for each relationship:
 | `@OneToMany` | **LAZY** |
 | `@ManyToMany` | **LAZY** |
 
-The defaults for `@ManyToOne` and `@OneToOne` are **EAGER**. This means every time you load an entity, JPA automatically loads its `@ManyToOne` and `@OneToOne` relationships too — whether you need them or not.
+The defaults for `@ManyToOne` and `@OneToOne` are **EAGER**. This means every time you load an entity, JPA automatically loads its `@ManyToOne` and `@OneToOne` relationships too - whether you need them or not.
 
 This is dangerous. Imagine a `Book` entity with a `@ManyToOne` to `Author`, a `@ManyToOne` to `Publisher`, and a `@ManyToOne` to `Category`. If all three are EAGER, every query that loads a book also joins three tables and loads three extra objects. And if those objects have their own EAGER relationships, the chain continues.
 
@@ -134,13 +134,13 @@ When everything is LAZY, you are in control. You decide what to load and when, u
 
 ### The EAGER Trap
 
-Once you set a relationship to EAGER, it is very hard to undo for a specific query. A plain JPQL query cannot suppress an EAGER fetch — the data will still be loaded (Hibernate fires extra SELECT queries behind the scenes). In theory, a `FETCH`-type `@EntityGraph` should treat non-listed attributes as LAZY per the JPA spec. In practice, Hibernate still eagerly fetches `@ManyToOne` and `@OneToOne` associations that are declared as EAGER, regardless of the entity graph. Once a relationship is EAGER, you cannot reliably make it LAZY for a specific query.
+Once you set a relationship to EAGER, it is very hard to undo for a specific query. A plain JPQL query cannot suppress an EAGER fetch - the data will still be loaded (Hibernate fires extra SELECT queries behind the scenes). In theory, a `FETCH`-type `@EntityGraph` should treat non-listed attributes as LAZY per the JPA spec. In practice, Hibernate still eagerly fetches `@ManyToOne` and `@OneToOne` associations that are declared as EAGER, regardless of the entity graph. Once a relationship is EAGER, you cannot reliably make it LAZY for a specific query.
 
 But if you set a relationship to LAZY, you can always choose to load it eagerly for a specific query using `JOIN FETCH` or `@EntityGraph`. LAZY gives you flexibility. EAGER takes it away.
 
 ---
 
-## Fixing N+1 — The Solutions
+## Fixing N+1 - The Solutions
 
 ### Solution 1: JOIN FETCH
 
@@ -182,7 +182,7 @@ List<Author> findAllWithBooks();
 
 Since Hibernate 6 (Spring Boot 3.x), Hibernate automatically handles the deduplication for `JOIN FETCH` queries and the `DISTINCT` keyword is passed to SQL only when necessary. But it is still good practice to include `DISTINCT` for clarity.
 
-3. **Be careful when JOIN FETCH-ing two collections at the same time.** If both collections are typed as `List`, Hibernate 5 throws `MultipleBagFetchException`. Hibernate 6 (Spring Boot 3.x) handles some multi-collection fetch scenarios without throwing this exception, but the underlying problem remains — the SQL produces a Cartesian product between the two collections, which can explode the result set size. If you try:
+3. **Be careful when JOIN FETCH-ing two collections at the same time.** If both collections are typed as `List`, Hibernate 5 throws `MultipleBagFetchException`. Hibernate 6 (Spring Boot 3.x) handles some multi-collection fetch scenarios without throwing this exception, but the underlying problem remains - the SQL produces a Cartesian product between the two collections, which can explode the result set size. If you try:
 
 ```java
 // Risky: Cartesian product between books and awards
@@ -192,7 +192,7 @@ List<Author> findAllWithBooksAndAwards();
 
 There are two safer approaches:
 
-- Use `Set` instead of `List` for one of the collections (this avoids the `MultipleBagFetchException` in Hibernate 5, and signals to Hibernate 6 that duplicates should be eliminated — but the Cartesian product still exists in the SQL, so use only with small collections).
+- Use `Set` instead of `List` for one of the collections (this avoids the `MultipleBagFetchException` in Hibernate 5, and signals to Hibernate 6 that duplicates should be eliminated - but the Cartesian product still exists in the SQL, so use only with small collections).
 - Use two separate queries and let Hibernate's Persistence Context merge the results.
 
 ### Solution 2: @EntityGraph
@@ -217,7 +217,7 @@ List<Author> findAll();
 ```
 
 **Advantages of @EntityGraph over JOIN FETCH:**
-- No JPQL needed — works with Spring Data derived query methods
+- No JPQL needed - works with Spring Data derived query methods
 - Cleaner syntax for simple cases
 
 **Disadvantages:**
@@ -225,9 +225,9 @@ List<Author> findAll();
 - Can be harder to debug because the query is generated, not written
 - Has the **same pagination problem** as `JOIN FETCH` with collections (Hibernate applies pagination in memory). Use the two-query approach described later in this article for both
 
-### Solution 3: @BatchSize — The Middle Ground
+### Solution 3: @BatchSize - The Middle Ground
 
-Sometimes you do need lazy loading — you just want it to be less chatty. `@BatchSize` tells Hibernate to load lazy collections in batches instead of one at a time.
+Sometimes you do need lazy loading - you just want it to be less chatty. `@BatchSize` tells Hibernate to load lazy collections in batches instead of one at a time.
 
 ```java
 @Entity
@@ -297,11 +297,11 @@ This is very efficient for large datasets. The trade-off is that it always loads
 
 ---
 
-## DTO Projections — When You Should Stop Using Entities
+## DTO Projections - When You Should Stop Using Entities
 
 Every solution so far loads full entities. But often, you do not need the full entity. You need a few fields for an API response or a report. Loading full entities wastes memory (Hibernate keeps snapshots for dirty checking) and bandwidth.
 
-DTO projections tell Hibernate to select only the columns you need and map them directly to a simple object — no entity management, no dirty checking, no snapshots.
+DTO projections tell Hibernate to select only the columns you need and map them directly to a simple object - no entity management, no dirty checking, no snapshots.
 
 ### Interface-Based Projection
 
@@ -372,12 +372,12 @@ Keep using entities when:
 
 ---
 
-## LazyInitializationException — The Three Correct Solutions
+## LazyInitializationException - The Three Correct Solutions
 
 If you turned off OSIV (as we recommended in Part 1), you will eventually hit this exception:
 
 ```
-org.hibernate.LazyInitializationException: failed to lazily initialize a collection —
+org.hibernate.LazyInitializationException: failed to lazily initialize a collection -
 could not initialize proxy - no Session
 ```
 
@@ -387,7 +387,7 @@ This happens when you try to access a lazy-loaded relationship outside of a tran
 
 **Do not turn OSIV back on.** It hides the problem and creates worse problems in production (see Part 1).
 
-**Do not use `Hibernate.initialize()` everywhere.** It triggers a separate SELECT for each collection you initialize — you are back to N+1.
+**Do not use `Hibernate.initialize()` everywhere.** It triggers a separate SELECT for each collection you initialize - you are back to N+1.
 
 ```java
 // BAD: triggers separate SELECT queries
@@ -396,7 +396,7 @@ public Author getAuthor(Long id) {
     Author author = authorRepository.findById(id).orElseThrow();
     Hibernate.initialize(author.getBooks()); // extra SELECT
     for (Book book : author.getBooks()) {
-        Hibernate.initialize(book.getReviews()); // extra SELECT per book — N+1 again!
+        Hibernate.initialize(book.getReviews()); // extra SELECT per book - N+1 again!
     }
     return author;
 }
@@ -539,7 +539,7 @@ Quick and useful during development, but not automated.
 
 ---
 
-## Pagination with JOIN FETCH — A Common Trap
+## Pagination with JOIN FETCH - A Common Trap
 
 When you combine pagination with `JOIN FETCH`, Hibernate logs a warning:
 
@@ -576,8 +576,8 @@ public Page<Author> getAuthorsWithBooks(Pageable pageable) {
 ```
 
 This executes two queries (plus a count query for `Page` total elements):
-1. `SELECT id FROM authors LIMIT ? OFFSET ?` — paginated, no join
-2. `SELECT authors + books WHERE id IN (?, ?, ...)` — full fetch for just the page
+1. `SELECT id FROM authors LIMIT ? OFFSET ?` - paginated, no join
+2. `SELECT authors + books WHERE id IN (?, ?, ...)` - full fetch for just the page
 
 Clean, efficient, and correct pagination.
 
@@ -585,15 +585,15 @@ Clean, efficient, and correct pagination.
 
 ## Key Takeaways
 
-1. **The N+1 problem** is the most common JPA performance issue. It happens when you access lazy collections inside a loop — each access fires a separate query.
+1. **The N+1 problem** is the most common JPA performance issue. It happens when you access lazy collections inside a loop - each access fires a separate query.
 
 2. **Set every relationship to `FetchType.LAZY`.** This is the safe default. You can always load eagerly on a per-query basis using `JOIN FETCH` or `@EntityGraph`. You cannot make an EAGER relationship lazy.
 
 3. **`JOIN FETCH`** is the primary fix for N+1. It loads related data in one SQL join. Remember to use `LEFT JOIN FETCH` to include entities without children, and `DISTINCT` for clean results.
 
-4. **`@BatchSize` and `@Fetch(FetchMode.SUBSELECT)`** are good alternatives when `JOIN FETCH` is not practical — especially for multiple collections or unpredictable access patterns.
+4. **`@BatchSize` and `@Fetch(FetchMode.SUBSELECT)`** are good alternatives when `JOIN FETCH` is not practical - especially for multiple collections or unpredictable access patterns.
 
-5. **Use DTO projections for read-only data.** They skip entity management entirely — no snapshots, no dirty checking, lower memory usage.
+5. **Use DTO projections for read-only data.** They skip entity management entirely - no snapshots, no dirty checking, lower memory usage.
 
 6. **Fix `LazyInitializationException` by loading data in the service layer**, not by turning OSIV back on. Use `JOIN FETCH`, `@EntityGraph`, or DTOs.
 
@@ -605,7 +605,7 @@ Clean, efficient, and correct pagination.
 
 ## What Is Next
 
-We have covered the fundamentals (Part 1), transaction management (Part 2), and performance (this article). In Part 4, we will put it all together with production-grade patterns — event listeners, retry strategies, the outbox pattern, and how to test transactional code correctly.
+We have covered the fundamentals (Part 1), transaction management (Part 2), and performance (this article). In Part 4, we will put it all together with production-grade patterns - event listeners, retry strategies, the outbox pattern, and how to test transactional code correctly.
 
 ---
 
