@@ -615,6 +615,40 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 }
 ```
 
+### What PostgreSQL Actually Locks During a Bulk Update
+
+When your `@Modifying` query runs a bulk UPDATE, PostgreSQL does **not** lock the entire table. Here is what actually happens:
+
+**Step 1: Table-level lock - `ROW EXCLUSIVE`**
+
+PostgreSQL acquires a `ROW EXCLUSIVE` lock on the table. This is the weakest exclusive table-level lock. It only exists to prevent DDL operations (like `DROP TABLE` or `ALTER TABLE`) from running while data changes are in progress.
+
+`ROW EXCLUSIVE` allows other `SELECT`, `INSERT`, `UPDATE`, and `DELETE` statements to run on the same table at the same time. Two bulk UPDATEs on the same table can execute concurrently at the table level. See the [PostgreSQL explicit locking documentation](https://www.postgresql.org/docs/current/explicit-locking.html) for the full conflict matrix.
+
+**Step 2: Row-level locks - the real contention point**
+
+PostgreSQL locks each individual row that the UPDATE touches. Only the rows matching the `WHERE` clause are locked. Every other row in the table remains fully available for reads and writes.
+
+```sql
+-- Only rows matching the WHERE clause get row-level locks.
+-- All other rows in the orders table are unaffected.
+UPDATE orders SET status = 'CANCELLED'
+WHERE status = 'CREATED' AND created_at < '2024-01-01';
+```
+
+**Step 3: MVCC means readers never wait**
+
+PostgreSQL uses MVCC (Multi-Version Concurrency Control). A `SELECT` running at the same time does not wait for the UPDATE to finish. It simply reads the previous version of the row (the pre-update snapshot). Writers never block readers.
+
+**What about concurrent UPDATEs on the same rows?**
+
+If transaction A is updating a set of rows and transaction B tries to update the **same rows**:
+
+- At `READ COMMITTED` (the default): B waits until A commits or rolls back, then re-evaluates its WHERE clause against the updated data and proceeds.
+- At `REPEATABLE READ`: B waits until A commits, then fails with a serialization error (`could not serialize access due to concurrent update`). This is the exact scenario we cover in the isolation levels section below.
+
+> For the full details on row-level locking, see the [PostgreSQL row-level locks documentation](https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS).
+
 ### The Stale Persistence Context Trap
 
 There is another catch with `@Modifying` that has nothing to do with transactions. A modifying query goes straight to the database via JPQL. Hibernate does not know about it. The Persistence Context still holds the old versions of any entities you loaded before the query.
